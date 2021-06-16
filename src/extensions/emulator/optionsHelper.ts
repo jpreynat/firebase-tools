@@ -8,7 +8,7 @@ import * as localHelper from "../localHelper";
 import * as triggerHelper from "./triggerHelper";
 import { Resource } from "../extensionsApi";
 import * as extensionsHelper from "../extensionsHelper";
-import * as Config from "../../config";
+import { Config } from "../../config";
 import { FirebaseError } from "../../error";
 import { EmulatorLogger } from "../../emulator/emulatorLogger";
 import * as getProjectId from "../../getProjectId";
@@ -130,7 +130,7 @@ function buildConfig(
     }
   }
 
-  if (config.get("functions")) {
+  if (config.src.functions) {
     // Switch functions source to what is provided in the extension.yaml
     // to match the behavior of deployed extensions.
     const sourceDirectory = getFunctionSourceDirectory(functionResources);

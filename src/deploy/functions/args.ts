@@ -1,5 +1,3 @@
-import { ReadStream } from "fs";
-
 import * as backend from "./backend";
 import * as gcfV2 from "../../gcp/cloudfunctionsv2";
 
@@ -12,38 +10,6 @@ export interface Payload {
   };
 }
 
-// Options come from command-line options and stored config values
-// TODO: actually define all of this stuff in command.ts and import it from there.
-export interface Options {
-  cwd: string;
-  configPath: string;
-
-  // OMITTED: project. Use context.projectId instead
-
-  only: string;
-
-  // defined in /config.js
-  config: {
-    // Note: it might be worth defining overloads for config values we use in
-    // deploy/functions.
-    get(key: string, defaultValue?: unknown): unknown;
-    set(key: string, value: unknown): void;
-    has(key: string): boolean;
-    path(pathName: string): string;
-
-    // I/O methods: these methods work with JSON objects.
-    // WARNING: they all use synchronous I/O
-    readProjectFile(file: string): unknown;
-    writeProjectFile(path: string, content: unknown): void;
-    askWriteProjectFile(path: string, content: unknown): void;
-
-    projectDir: string;
-  };
-  filteredTargets: string[];
-  nonInteractive: boolean;
-  force: boolean;
-}
-
 // Context holds cached values of what we've looked up in handling this request.
 // For non-trivial values, use helper functions that cache automatically and/or hide implementation
 // details.
@@ -53,7 +19,6 @@ export interface Context {
 
   // Filled in the "prepare" phase.
   functionsSource?: string;
-  runtimeChoice?: backend.Runtime;
   runtimeConfigEnabled?: boolean;
   firebaseConfig?: FirebaseConfig;
 

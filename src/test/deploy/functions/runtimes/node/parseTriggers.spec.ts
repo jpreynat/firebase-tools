@@ -2,7 +2,7 @@ import { expect } from "chai";
 
 import { FirebaseError } from "../../../../../error";
 import * as backend from "../../../../../deploy/functions/backend";
-import * as parseTriggers from "../../../../../deploy/functions/discovery/jsexports/parseTriggers";
+import * as parseTriggers from "../../../../../deploy/functions/runtimes/node/parseTriggers";
 import * as api from "../../../../../api";
 
 describe("addResourcesToBackend", () => {
@@ -126,6 +126,9 @@ describe("addResourcesToBackend", () => {
       vpcConnector: "projects/project/locations/region/connectors/connector",
       ingressSettings: "ALLOW_ALL",
       timeout: "60s",
+      labels: {
+        test: "testing",
+      },
     };
 
     const result = backend.empty();
@@ -146,6 +149,9 @@ describe("addResourcesToBackend", () => {
           vpcConnector: "projects/project/locations/region/connectors/connector",
           ingressSettings: "ALLOW_ALL",
           timeout: "60s",
+          labels: {
+            test: "testing",
+          },
         },
       ],
     };
@@ -260,6 +266,9 @@ describe("addResourcesToBackend", () => {
       httpsTrigger: {},
       regions: ["us-central1", "europe-west1"],
       schedule,
+      labels: {
+        test: "testing",
+      },
     };
 
     const result = backend.empty();
@@ -277,6 +286,7 @@ describe("addResourcesToBackend", () => {
       },
       labels: {
         "deployment-scheduled": "true",
+        test: "testing",
       },
       region: "us-central1",
     };
@@ -288,9 +298,11 @@ describe("addResourcesToBackend", () => {
       },
       labels: {
         "deployment-scheduled": "true",
+        test: "testing",
       },
     };
     const expected: backend.Backend = {
+      ...backend.empty(),
       requiredAPIs: {
         pubsub: "pubsub.googleapis.com",
         scheduler: "cloudscheduler.googleapis.com",
@@ -300,11 +312,13 @@ describe("addResourcesToBackend", () => {
         {
           id: "firebase-schedule-func-us-central1",
           project: "project",
+          labels: backend.SCHEDULED_FUNCTION_LABEL,
           targetService: BASIC_FUNCTION_NAME,
         },
         {
           id: "firebase-schedule-func-europe-west1",
           project: "project",
+          labels: backend.SCHEDULED_FUNCTION_LABEL,
           targetService: europeFunctionName,
         },
       ],

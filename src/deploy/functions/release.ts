@@ -12,8 +12,9 @@ import * as helper from "./functionsDeployHelper";
 import * as tasks from "./tasks";
 import * as backend from "./backend";
 import * as args from "./args";
+import { Options } from "../../options";
 
-export async function release(context: args.Context, options: args.Options, payload: args.Payload) {
+export async function release(context: args.Context, options: Options, payload: args.Payload) {
   if (!options.config.has("functions")) {
     return;
   }
@@ -54,34 +55,31 @@ export async function release(context: args.Context, options: args.Options, payl
     projectId,
     sourceUrl,
     storageSource: context.storageSource,
-    runtime: context.runtimeChoice,
     errorHandler,
   };
 
   // Note(inlined): We might increase consistency if we tried a fully regional strategy, but
   // the existing code was written to process deletes before creates and updates.
-  const allFnsToDelete = Object.values(fullDeployment.regionalDeployments)
-    .map((regionalChanges) => regionalChanges.functionsToDelete)
-    .reduce((accum, functions) => [...(accum || []), ...functions]);
+  const allFnsToDelete = Object.values(fullDeployment.regionalDeployments).reduce(
+    (accum, region) => [...accum, ...region.functionsToDelete],
+    [] as backend.FunctionSpec[]
+  );
   const shouldDeleteFunctions = await promptForFunctionDeletion(
     allFnsToDelete,
     options.force,
     options.nonInteractive
   );
-  if (shouldDeleteFunctions) {
-    for (const fn of allFnsToDelete) {
-      const task = tasks.deleteFunctionTask(taskParams, fn);
-      cloudFunctionsQueue.run(task);
-    }
-  } else {
+  if (!shouldDeleteFunctions) {
     // If we shouldn't delete functions, don't clean up their schedules either
     fullDeployment.schedulesToDelete = fullDeployment.schedulesToDelete.filter((schedule) => {
       return !allFnsToDelete.find(backend.sameFunctionName(schedule.targetService));
     });
     fullDeployment.topicsToDelete = fullDeployment.topicsToDelete.filter((topic) => {
-      const fnName = backend.functionName(topic.targetService);
       return !allFnsToDelete.find(backend.sameFunctionName(topic.targetService));
     });
+    for (const regionalDeployment of Object.values(fullDeployment.regionalDeployments)) {
+      regionalDeployment.functionsToDelete = [];
+    }
   }
 
   for (const [region, deployment] of Object.entries(fullDeployment.regionalDeployments)) {
@@ -93,15 +91,15 @@ export async function release(context: args.Context, options: args.Options, payl
 
   for (const schedule of fullDeployment.schedulesToUpsert) {
     const task = tasks.upsertScheduleTask(taskParams, schedule, appEngineLocation);
-    schedulerQueue.run(task);
+    void schedulerQueue.run(task);
   }
   for (const schedule of fullDeployment.schedulesToDelete) {
     const task = tasks.deleteScheduleTask(taskParams, schedule, appEngineLocation);
-    schedulerQueue.run(task);
+    void schedulerQueue.run(task);
   }
   for (const topic of fullDeployment.topicsToDelete) {
     const task = tasks.deleteTopicTask(taskParams, topic);
-    pubSubQueue.run(task);
+    void pubSubQueue.run(task);
   }
 
   // Once everything has been added to queues, starting processing.

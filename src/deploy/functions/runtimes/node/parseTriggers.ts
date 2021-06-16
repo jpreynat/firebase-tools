@@ -8,6 +8,7 @@ import * as backend from "../../backend";
 import * as api from "../../../../api";
 import * as proto from "../../../../gcp/proto";
 import * as args from "../../args";
+import * as runtimes from "../../runtimes";
 
 const TRIGGER_PARSER = path.resolve(__dirname, "./triggerParser.js");
 
@@ -69,18 +70,14 @@ function removeInspectOptions(options: string[]): string[] {
 function parseTriggers(
   projectId: string,
   sourceDir: string,
-  configValues: backend.RuntimeConfigValues
+  configValues: backend.RuntimeConfigValues,
+  envs: backend.EnvironmentVariables
 ): Promise<TriggerAnnotation[]> {
   return new Promise((resolve, reject) => {
-    const env = _.cloneDeep(process.env);
+    const env = { ...envs } as NodeJS.ProcessEnv;
     env.GCLOUD_PROJECT = projectId;
     if (!_.isEmpty(configValues)) {
       env.CLOUD_RUNTIME_CONFIG = JSON.stringify(configValues);
-      if (configValues.firebase) {
-        // In case user has `admin.initalizeApp()` at the top of the file and it was executed before firebase-functions v1
-        // is loaded, which would normally set FIREBASE_CONFIG.
-        env.FIREBASE_CONFIG = JSON.stringify(configValues.firebase);
-      }
     }
 
     const execArgv = removeInspectOptions(process.execArgv);
@@ -121,22 +118,23 @@ export function useStrategy(context: args.Context): Promise<boolean> {
 }
 
 export async function discoverBackend(
-  context: args.Context,
-  options: args.Options,
-  configValues: backend.RuntimeConfigValues
+  projectId: string,
+  sourceDir: string,
+  runtime: runtimes.Runtime,
+  configValues: backend.RuntimeConfigValues,
+  envs: backend.EnvironmentVariables
 ): Promise<backend.Backend> {
-  const sourceDir = options.config.path(options.config.get("functions.source") as string);
-  const triggerAnnotations = await parseTriggers(context.projectId, sourceDir, configValues);
-  const want: backend.Backend = backend.empty();
+  const triggerAnnotations = await parseTriggers(projectId, sourceDir, configValues, envs);
+  const want: backend.Backend = { ...backend.empty(), environmentVariables: envs };
   for (const annotation of triggerAnnotations) {
-    addResourcesToBackend(context.projectId, context.runtimeChoice!, annotation, want);
+    addResourcesToBackend(projectId, runtime, annotation, want);
   }
   return want;
 }
 
 export function addResourcesToBackend(
   projectId: string,
-  runtime: backend.Runtime,
+  runtime: runtimes.Runtime,
   annotation: TriggerAnnotation,
   want: backend.Backend
 ) {
@@ -217,6 +215,7 @@ export function addResourcesToBackend(
       const topic: backend.PubSubSpec = {
         id,
         project: projectId,
+        labels: backend.SCHEDULED_FUNCTION_LABEL,
         targetService: cloudFunctionName,
       };
       want.topics.push(topic);
@@ -227,7 +226,10 @@ export function addResourcesToBackend(
         cloudFunction.trigger.eventFilters.resource = `${cloudFunction.trigger.eventFilters.resource}/${id}`;
       }
 
-      cloudFunction.labels = { "deployment-scheduled": "true" };
+      cloudFunction.labels = {
+        ...cloudFunction.labels,
+        "deployment-scheduled": "true",
+      };
     }
 
     want.cloudFunctions.push(cloudFunction);
